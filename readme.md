@@ -22,7 +22,3 @@ This repository contains the code implementation for the paper '*Inductive Reaso
 
 - torch-geometric 2.4.0
 
-
-## Download Datasets
-
-Download the datasets from the following link: https://drive.google.com/drive/folders/10dmlwjv1XvPwu6Yfx-XNqpZzgyFiGC1v?usp=sharing
