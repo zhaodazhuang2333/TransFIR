@@ -133,17 +133,17 @@ def sort_by_last_dim_with_neg1_last(arr):
 	# arr: shape (B, N, 4)
 	last_val = arr[:, :, 3]  # shape (B, N)
 
-	# 构造排序键：将 -1 替换为 +inf（放到最后）
+	# 鏋勯€犳帓搴忛敭锛氬皢 -1 鏇挎崲涓� +inf锛堟斁鍒版渶鍚庯級
 	sort_key = torch.where(last_val == -1, torch.tensor(float('inf'), device=arr.device), last_val)
 
-	# 获取排序索引
+	# 鑾峰彇鎺掑簭绱㈠紩
 	sorted_indices = torch.argsort(sort_key, dim=1)
 
-	# 扩展 sorted_indices 用于 index_select
+	# 鎵╁睍 sorted_indices 鐢ㄤ簬 index_select
 	B, N, _ = arr.shape
 	batch_indices = torch.arange(B, device=arr.device).unsqueeze(1).expand(B, N)
 
-	# 对 N 维度排序
+	# 瀵� N 缁村害鎺掑簭
 	sorted_arr = arr[batch_indices, sorted_indices]
 
 	return sorted_arr
@@ -203,7 +203,7 @@ def get_embedding_two_hops(one_hop_chain, two_hop_chain, entity_embedding, relat
 #     unmasked_indices = torch.nonzero(~one_hop_mask, as_tuple=False)  # (K, 2)
 #     i_idx, j_idx = unmasked_indices[:, 0], unmasked_indices[:, 1]
 
-#     # 使用批量索引填入
+#     # 浣跨敤鎵归噺绱㈠紩濉叆
 #     one_hop_chain_embedding[i_idx, j_idx] = valid_chain_embedding
 
 #     one_hop_chain_embedding = one_hop_chain_embedding.view(B, -1, entity_embedding.shape[1])
@@ -286,10 +286,10 @@ def score_for_query(score, rows_of_false, r=1):
 	"""
 	# score: (K,)
 	# rows_of_false: (K,)
-	# 1. 计算每个 group 的最大值
-	# 2. 减去 max，做 exp
-	# 3. 对每个 group 累加分母
-	# 4. 最终 softmax
+	# 1. 璁＄畻姣忎釜 group 鐨勬渶澶у€�
+	# 2. 鍑忓幓 max锛屽仛 exp
+	# 3. 瀵规瘡涓� group 绱姞鍒嗘瘝
+	# 4. 鏈€缁� softmax
 	# step 0: prepare
 	K = score.shape[0]
 	score = score.view(K)  # (K,)
@@ -297,19 +297,19 @@ def score_for_query(score, rows_of_false, r=1):
 	unique_rows, inverse_index = torch.unique(rows_of_false, return_inverse=True)  # inverse_index: (K,)
 	num_groups = unique_rows.shape[0]
 
-	# step 1: 计算每个 group 的最大值 (for numerical stability)
+	# step 1: 璁＄畻姣忎釜 group 鐨勬渶澶у€� (for numerical stability)
 	max_per_group = torch.full((num_groups,), float('-inf'), device=device)
 	max_per_group = max_per_group.scatter_reduce(0, inverse_index, score, reduce='amax', include_self=True)
 
-	# step 2: 减去 max，做 exp
+	# step 2: 鍑忓幓 max锛屽仛 exp
 	score_shifted = score - max_per_group[inverse_index]  # (K,)
 	score_exp = torch.exp(score_shifted)  # (K,)
 
-	# step 3: 对每个 group 累加分母
+	# step 3: 瀵规瘡涓� group 绱姞鍒嗘瘝
 	sum_exp_per_group = torch.zeros(num_groups, device=device)
 	sum_exp_per_group = sum_exp_per_group.scatter_add(0, inverse_index, score_exp)
 
-	# step 4: 最终 softmax
+	# step 4: 鏈€缁� softmax
 	score_softmax = score_exp / sum_exp_per_group[inverse_index]
 	return score_softmax, inverse_index
 
@@ -322,10 +322,10 @@ class PseudoOntologyDecoder(nn.Module):
 		self.relation_embedding_dim = relation_embedding_dim
 		self.entity_embedding_dim = entity_embedding_dim
 		
-		# 为每个cluster学习一个中心向量，用于soft-type匹配
+		# 涓烘瘡涓猚luster瀛︿範涓€涓腑蹇冨悜閲忥紝鐢ㄤ簬soft-type鍖归厤
 		self.type_centroids = nn.Parameter(torch.randn(num_clusters, entity_embedding_dim))
 		
-		# # 关系的“类型模式”：每个关系的头/尾所属伪类型
+		# # 鍏崇郴鐨勨€滅被鍨嬫ā寮忊€濓細姣忎釜鍏崇郴鐨勫ご/灏炬墍灞炰吉绫诲瀷
 		# self.relation_head_type = nn.Parameter(torch.randn(num_clusters, relation_embedding_dim))
 		# self.relation_tail_type = nn.Parameter(torch.randn(num_clusters, relation_embedding_dim))
 		
@@ -333,7 +333,7 @@ class PseudoOntologyDecoder(nn.Module):
 
 	def generate_pseudo_types(self, entity_embeddings):
 		"""
-		基于KMeans对实体嵌入聚类，生成伪本体标签（只用于训练初始化）
+		鍩轰簬KMeans瀵瑰疄浣撳祵鍏ヨ仛绫伙紝鐢熸垚浼湰浣撴爣绛撅紙鍙敤浜庤缁冨垵濮嬪寲锛�
 		"""
 		with torch.no_grad():
 			kmeans = KMeans(n_clusters=self.num_clusters)
@@ -344,20 +344,20 @@ class PseudoOntologyDecoder(nn.Module):
 
 	def forward(self, relation_emb):
 		"""
-		预测打分，同时引入伪本体的一致性约束
+		棰勬祴鎵撳垎锛屽悓鏃跺紩鍏ヤ吉鏈綋鐨勪竴鑷存€х害鏉�
 		"""
 
 		match_score = torch.matmul(relation_emb, self.type_centroids.T)  # (B, C)
-		# # 计算原始三元组打分
+		# # 璁＄畻鍘熷涓夊厓缁勬墦鍒�
 		# triple_score = self.scorer(head_emb, relation_emb).squeeze(-1)
 
-		# # 计算head、tail与每个伪本体中心的相似度（可用于soft类型匹配）
+		# # 璁＄畻head銆乼ail涓庢瘡涓吉鏈綋涓績鐨勭浉浼煎害锛堝彲鐢ㄤ簬soft绫诲瀷鍖归厤锛�
 		# head_type_scores = torch.matmul(head_emb, self.type_centroids.T)  # (B, C)
 		# tail_type_scores = torch.matmul(tail_emb, self.type_centroids.T)  # (B, C)
-		# # 与当前关系的类型模式做匹配（如关系R倾向连接的伪类型）
+		# # 涓庡綋鍓嶅叧绯荤殑绫诲瀷妯″紡鍋氬尮閰嶏紙濡傚叧绯籖鍊惧悜杩炴帴鐨勪吉绫诲瀷锛�
 		# head_match_score = torch.sum(head_type_scores * torch.matmul(relation_emb, self.relation_head_type.T), dim=1)
 		# tail_match_score = torch.sum(tail_type_scores * torch.matmul(relation_emb, self.relation_tail_type.T), dim=1)
-		# # 综合打分
+		# # 缁煎悎鎵撳垎
 		# total_score = triple_score + 0.1 * (head_match_score + tail_match_score)
 		match_score = match_score[:, self.pseudo_labels]
 		return match_score
@@ -374,17 +374,17 @@ class PseudoOntologyDecoder(nn.Module):
 #         self.relation_embedding_dim = relation_embedding_dim
 #         self.entity_embedding_dim = entity_embedding_dim
 		
-#         # 为每个cluster学习一个中心向量，用于soft-type匹配
+#         # 涓烘瘡涓猚luster瀛︿範涓€涓腑蹇冨悜閲忥紝鐢ㄤ簬soft-type鍖归厤
 #         self.type_centroids = nn.Parameter(torch.randn(num_clusters, entity_embedding_dim))
 		
-#         # 关系的“类型模式”：每个关系的头/尾所属伪类型
+#         # 鍏崇郴鐨勨€滅被鍨嬫ā寮忊€濓細姣忎釜鍏崇郴鐨勫ご/灏炬墍灞炰吉绫诲瀷
 #         self.relation_tail_type = nn.Parameter(torch.randn(num_clusters, relation_embedding_dim))
 		
 #         self.scorer = nn.Bilinear(entity_embedding_dim, relation_embedding_dim, 1)
 
 #     def generate_pseudo_types(self, entity_embeddings):
 #         """
-#         基于KMeans对实体嵌入聚类，生成伪本体标签（只用于训练初始化）
+#         鍩轰簬KMeans瀵瑰疄浣撳祵鍏ヨ仛绫伙紝鐢熸垚浼湰浣撴爣绛撅紙鍙敤浜庤缁冨垵濮嬪寲锛�
 #         """
 #         with torch.no_grad():
 #             kmeans = KMeans(n_clusters=self.num_clusters)
@@ -395,20 +395,20 @@ class PseudoOntologyDecoder(nn.Module):
 
 #     def forward(self, head_emb, relation_emb, tail_emb):
 #         """
-#         预测打分，同时引入伪本体的一致性约束
+#         棰勬祴鎵撳垎锛屽悓鏃跺紩鍏ヤ吉鏈綋鐨勪竴鑷存€х害鏉�
 #         """
-#         # 计算原始三元组打分
+#         # 璁＄畻鍘熷涓夊厓缁勬墦鍒�
 #         triple_score = self.scorer(head_emb, relation_emb).squeeze(-1)
 
-#         # 计算head、tail与每个伪本体中心的相似度（可用于soft类型匹配）
+#         # 璁＄畻head銆乼ail涓庢瘡涓吉鏈綋涓績鐨勭浉浼煎害锛堝彲鐢ㄤ簬soft绫诲瀷鍖归厤锛�
 #         head_type_scores = torch.matmul(head_emb, self.type_centroids.T)  # (B, C)
 #         tail_type_scores = torch.matmul(tail_emb, self.type_centroids.T)  # (B, C)
 
-#         # 与当前关系的类型模式做匹配（如关系R倾向连接的伪类型）
+#         # 涓庡綋鍓嶅叧绯荤殑绫诲瀷妯″紡鍋氬尮閰嶏紙濡傚叧绯籖鍊惧悜杩炴帴鐨勪吉绫诲瀷锛�
 #         head_match_score = torch.sum(head_type_scores * torch.matmul(relation_emb, self.relation_head_type.T), dim=1)
 #         tail_match_score = torch.sum(tail_type_scores * torch.matmul(relation_emb, self.relation_tail_type.T), dim=1)
 
-#         # 综合打分
+#         # 缁煎悎鎵撳垎
 #         total_score = triple_score + 0.1 * (head_match_score + tail_match_score)
 #         return total_score
 
@@ -416,7 +416,7 @@ class ConvTransE(torch.nn.Module):
 	def __init__(self, num_entities, embedding_dim, input_dropout=0, hidden_dropout=0, feature_map_dropout=0, channels=3, kernel_size=3, use_bias=True):
 
 		super(ConvTransE, self).__init__()
-		# 初始化relation embeddings
+		# 鍒濆鍖杛elation embeddings
 		# self.emb_rel = torch.nn.Embedding(num_relations, embedding_dim, padding_idx=0)
 
 		self.inp_drop = torch.nn.Dropout(input_dropout)
@@ -468,28 +468,28 @@ def masked_mean_pooling_original(chain_embedding, mask):
 	B, N, group, D = mask.shape[0], mask.shape[1], 4, chain_embedding.shape[2]  # 128, 25, 4, 256
 	chain_embedding = chain_embedding.view(B, N, group, D)  # (128, 25, 4, 256)
 
-	# 反转 mask，False 表示无效 → True，True 表示有效 → False
+	# 鍙嶈浆 mask锛孎alse 琛ㄧず鏃犳晥 鈫� True锛孴rue 琛ㄧず鏈夋晥 鈫� False
 	valid_mask = ~mask  # shape (128, 25)
 
-	# 扩展 mask 用于广播到 embedding
+	# 鎵╁睍 mask 鐢ㄤ簬骞挎挱鍒� embedding
 	expanded_mask = valid_mask.unsqueeze(-1).unsqueeze(-1).expand(-1, -1, group, D)
 
-	# 取有效部分
+	# 鍙栨湁鏁堥儴鍒�
 	valid_embeddings = chain_embedding * expanded_mask
 
-	# 计算有效 token 数量
+	# 璁＄畻鏈夋晥 token 鏁伴噺
 	num_valid_tokens = valid_mask.sum(dim=1).clamp(min=1) * group  # shape: (128,)
 
-	# 默认平均
+	# 榛樿骞冲潎
 	pooled = valid_embeddings.sum(dim=1).sum(dim=1) / num_valid_tokens.unsqueeze(-1)  # (128, 256)
 
-	# 找出哪些样本完全无效（mask 全为 True）
-	all_invalid = ~valid_mask.any(dim=1)  # shape (128,), True 表示该样本全是 masked
+	# 鎵惧嚭鍝簺鏍锋湰瀹屽叏鏃犳晥锛坢ask 鍏ㄤ负 True锛�
+	all_invalid = ~valid_mask.any(dim=1)  # shape (128,), True 琛ㄧず璇ユ牱鏈叏鏄� masked
 
-	# 用 chain_embedding 第一个 token 替代这些行（从 group 展平后的 index 0）
+	# 鐢� chain_embedding 绗竴涓� token 鏇夸唬杩欎簺琛岋紙浠� group 灞曞钩鍚庣殑 index 0锛�
 	fallback = chain_embedding.view(B, N * group, D)[:, 0, :]  # shape: (128, 256)
 
-	# 替换全为 True 的样本
+	# 鏇挎崲鍏ㄤ负 True 鐨勬牱鏈�
 	pooled[all_invalid] = fallback[all_invalid]
 
 	return pooled
@@ -499,28 +499,28 @@ def masked_mean_pooling(chain_embedding, mask):
 	B, N, D = mask.shape[0], mask.shape[1], chain_embedding.shape[2]  # 128, 25, 4, 256
 	chain_embedding = chain_embedding.view(B, N, D)  # (128, 25, 4, 256)
 
-	# 反转 mask，False 表示无效 → True，True 表示有效 → False
+	# 鍙嶈浆 mask锛孎alse 琛ㄧず鏃犳晥 鈫� True锛孴rue 琛ㄧず鏈夋晥 鈫� False
 	valid_mask = ~mask  # shape (128, 25)
 	# pdb.set_trace()
-	# 扩展 mask 用于广播到 embedding
+	# 鎵╁睍 mask 鐢ㄤ簬骞挎挱鍒� embedding
 	expanded_mask = valid_mask.unsqueeze(-1).expand(-1, -1, D)
 
-	# 取有效部分
+	# 鍙栨湁鏁堥儴鍒�
 	valid_embeddings = chain_embedding * expanded_mask
 
-	# 计算有效 token 数量
+	# 璁＄畻鏈夋晥 token 鏁伴噺
 	num_valid_tokens = valid_mask.sum(dim=1).clamp(min=1)  # shape: (128,)
 
-	# 默认平均
+	# 榛樿骞冲潎
 	pooled = valid_embeddings.sum(dim=1) / num_valid_tokens.unsqueeze(-1)  # (128, 256)
 
-	# 找出哪些样本完全无效（mask 全为 True）
-	all_invalid = ~valid_mask.any(dim=1)  # shape (128,), True 表示该样本全是 masked
+	# 鎵惧嚭鍝簺鏍锋湰瀹屽叏鏃犳晥锛坢ask 鍏ㄤ负 True锛�
+	all_invalid = ~valid_mask.any(dim=1)  # shape (128,), True 琛ㄧず璇ユ牱鏈叏鏄� masked
 
-	# 用 chain_embedding 第一个 token 替代这些行（从 group 展平后的 index 0）
+	# 鐢� chain_embedding 绗竴涓� token 鏇夸唬杩欎簺琛岋紙浠� group 灞曞钩鍚庣殑 index 0锛�
 	fallback = chain_embedding.view(B, N, D)[:, 0, :]  # shape: (128, 256)
 
-	# 替换全为 True 的样本
+	# 鏇挎崲鍏ㄤ负 True 鐨勬牱鏈�
 	pooled[all_invalid] = fallback[all_invalid]
 
 	return pooled
@@ -531,12 +531,12 @@ class CodebookDecoder(nn.Module):
 		super().__init__()
 		self.num_codes = num_codes
 		self.embedding_dim = embedding_dim
-		self.codebook = nn.Parameter(torch.randn(num_codes, embedding_dim))  # 伪类型向量
+		self.codebook = nn.Parameter(torch.randn(num_codes, embedding_dim))  # 浼被鍨嬪悜閲�
 		self.commitment_beta = commitment_beta
 
 	def quantize(self, x):
 		"""
-		向量量化（最近邻查找）+ 计算VQ损失
+		鍚戦噺閲忓寲锛堟渶杩戦偦鏌ユ壘锛�+ 璁＄畻VQ鎹熷け
 		"""
 		# x: (B, D), codebook: (C, D)
 		x_expanded = x.unsqueeze(1)  # (B, 1, D)
@@ -551,7 +551,7 @@ class CodebookDecoder(nn.Module):
 		return quantized, nearest_idx, vq_loss
 
 	def forward(self, query_emb, entity_emb):
-		# 量化得到伪类型 + loss
+		# 閲忓寲寰楀埌浼被鍨� + loss
 		quant, head_idx, vq_loss = self.quantize(entity_emb)
 
 		score = torch.matmul(query_emb, quant.T)
@@ -568,7 +568,7 @@ class VectorQuantizerEMA(nn.Module):
 		self.usage_lambda = usage_lambda
 
 		codebook = torch.randn(num_codes, embedding_dim) * 0.1
-		self.register_buffer('codebook', codebook)               # 不对其反传
+		self.register_buffer('codebook', codebook)               # 涓嶅鍏跺弽浼�
 		self.register_buffer('ema_count', torch.zeros(num_codes))
 		self.register_buffer('ema_sum', torch.zeros(num_codes, embedding_dim))
 
@@ -585,7 +585,7 @@ class VectorQuantizerEMA(nn.Module):
 		n = self.ema_count + 1e-5
 		self.codebook.copy_( self.ema_sum / n.unsqueeze(-1) )
 
-		# 复活 dead codes
+		# 澶嶆椿 dead codes
 		dead = (self.ema_count < 1e-3).nonzero(as_tuple=True)[0]
 		if len(dead) > 0:
 			r = torch.randn(len(dead), self.embedding_dim, device=self.codebook.device)
@@ -595,7 +595,7 @@ class VectorQuantizerEMA(nn.Module):
 			self.ema_count[dead] = 1.0
 
 	def forward(self, x):
-		# 归一化 + 余弦距离
+		# 褰掍竴鍖� + 浣欏鸡璺濈
 		x_n = F.normalize(x, dim=-1)
 		cb_n = F.normalize(self.codebook, dim=-1)
 		sims = x_n @ cb_n.t()
@@ -603,11 +603,11 @@ class VectorQuantizerEMA(nn.Module):
 		idx = distances.argmin(dim=1)
 		quant = self.codebook[idx]
 
-		# VQ 损失（只对 x 侧回传）
-		# codebook 不反传，commitment 惩罚就够
+		# VQ 鎹熷け锛堝彧瀵� x 渚у洖浼狅級
+		# codebook 涓嶅弽浼狅紝commitment 鎯╃綒灏卞
 		commit_loss = self.commitment_beta * F.mse_loss(x, quant.detach())
 
-		# 使用度熵正则
+		# 浣跨敤搴︾喌姝ｅ垯
 		with torch.no_grad():
 			counts = torch.bincount(idx, minlength=self.num_codes).float()
 		p = counts / (counts.sum() + 1e-6)
@@ -623,7 +623,7 @@ class VectorQuantizerEMA(nn.Module):
 
 		# vq_loss = commit_loss + usage_loss
 
-		# EMA 更新
+		# EMA 鏇存柊
 		self._update_ema(x.detach(), idx)
 
 		aux = {"usage_entropy": entropy.detach(),
@@ -646,8 +646,8 @@ class BasicDriftMLP(nn.Module):
 
 	def forward(self, pseudo_event_emb):
 		"""
-		输入: pseudo_event_emb (B, D) - 每个实体所属本体类别在当前时间的伪事件表示
-		输出: delta (B, D) - 表征漂移量
+		杈撳叆: pseudo_event_emb (B, D) - 姣忎釜瀹炰綋鎵€灞炴湰浣撶被鍒湪褰撳墠鏃堕棿鐨勪吉浜嬩欢琛ㄧず
+		杈撳嚭: delta (B, D) - 琛ㄥ緛婕傜Щ閲�
 		"""
 		delta = self.mlp(pseudo_event_emb)
 		return delta
@@ -729,7 +729,6 @@ class MyModel(nn.Module):
 		self.mlp_encoder_2 = nn.Linear(entity_dim*2, entity_dim)
 		self.decoder = ConvTransE(num_ent, entity_dim, input_dropout=dropout, hidden_dropout=dropout, feature_map_dropout=dropout)
 		self.VQDecoder = CodebookDecoder(num_codes=self.num_code, embedding_dim=entity_dim)
-		self.VQ = VectorQuantizerEMA(num_codes=self.num_code, embedding_dim=entity_dim, commitment_beta=0.25, decay=0.99, usage_lambda=5e-3)
 
 		self.Drift = BasicDriftMLP(entity_dim)
 		self.ablation = ablation
@@ -769,10 +768,8 @@ class MyModel(nn.Module):
 			static_entity_embedding = embedding_dict['entity_embedding'][ground_truth[:, 0]]
 		else:
 			static_entity_embedding[query_entity] = static_entity_embedding[query_entity] + query_embedding
-		# VQ_score, vq_loss, pseudo_onto_idx = self.VQDecoder(relation, static_entity_embedding)
-		quant, pseudo_onto_idx, vq_loss, aux = self.VQ(static_entity_embedding)     # entity_emb: (N,D) 静态候选实体嵌入
-		# score = query_emb @ quant.t()                 # (B,N)
-		# loss = lp_loss + vq_loss
+		VQ_score, vq_loss, pseudo_onto_idx = self.VQDecoder(relation, static_entity_embedding)
+
 		query_onto = pseudo_onto_idx[query_entity]
 		entity_onto_embedding = static_entity_embedding[pseudo_onto_idx]
 
@@ -789,7 +786,6 @@ class MyModel(nn.Module):
 		query_entity_unique = query_entity.unique() 
 		not_query_entity = torch.tensor([i for i in range(self.num_ents) if i not in query_entity_unique])
 		dynamic_entity_embedding = static_entity_embedding.clone()
-		## no_drift or no_codebook
 
 		if self.ablation in ['no_drift', 'no_codebook']:
 			dynamic_entity_embedding = self.project(self.entity_embedding)
@@ -801,17 +797,14 @@ class MyModel(nn.Module):
 
 
 		scores_ob, _= self.decoder.forward(query_embedding, self.relation_embedding, dynamic_entity_embedding, query_entity, edge_type)
-		# print(scores_ob.isnan().any())
-		
-		# print(scores_ob.isnan().any())
+
 		if self.ablation == 'no_codebook':
 			scores_en = F.log_softmax(scores_ob, dim=1)
 			loss = F.nll_loss(scores_en, label)
 			return scores_en, loss
-		# scores_ob = scores_ob + VQ_score
+		scores_ob = scores_ob + 0.1 * VQ_score
 		scores_en = F.log_softmax(scores_ob, dim=1)
 
 		loss = F.nll_loss(scores_en, label) + 0.1*vq_loss
 
 		return scores_en, loss
-
